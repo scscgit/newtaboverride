@@ -86,12 +86,14 @@ const newtab = {
 
     await browser.tabs.getCurrent((tab) => {
       const tabId = tab.id;
-
       // set focus on website
       if (focus_website) {
         // we need to pass the cookieStoreId to support the container tabs feature of Firefox
         browser.tabs.create({ url : url, cookieStoreId : tab.cookieStoreId }, () => {
           browser.tabs.remove(tabId);
+          // also remove it from the recent closed tabs, otherwise the user who reopens it would get stuck in a loop
+          // TODO: After browser.tabs.remove(tabId) this no longer works! But before that it's too soon.
+          browser.sessions.getRecentlyClosed({ maxResults: 1 }).then(newtab.forgetMostRecent, newtab.onErrorForgetMostRecent);
         });
       }
       // set focus on address bar
@@ -103,9 +105,34 @@ const newtab = {
         });
       }
     });
-
     // delete spammy new tab page entry from history
     browser.history.deleteUrl({ url : browser.extension.getURL(NEW_TAB_PAGE) });
+    browser.sessions.getRecentlyClosed({ maxResults: 1 }).then(newtab.forgetMostRecent, newtab.onErrorForgetMostRecent);
+  },
+
+  forgetMostRecent(sessionInfos) {
+    if (!sessionInfos.length) {
+      console.log("No sessions found")
+      return;
+    }
+    // Assuming only one tab get be requested to be closed
+    let sessionInfo = sessionInfos[0];
+    if (sessionInfo.tab) {
+      // Prevention of accidentally closing different tab
+      if (sessionInfo.tab.url.startsWith("moz-extension://") && sessionInfo.tab.url.endsWith("/html/newtab.html")) {
+        console.log("Forgetting closed tab: " + sessionInfo.tab.url);
+        browser.sessions.forgetClosedTab(sessionInfo.tab.windowId, sessionInfo.tab.sessionId);
+      } else {
+        console.log("Condition failed, not forgetting closed tab: " + sessionInfo.tab.url);
+      }
+    } else {
+      // TODO: make sure forgetting the closed window is handled well
+      //browser.sessions.forgetClosedWindow(sessionInfo.window.sessionId);
+    }
+  },
+
+  onErrorForgetMostRecent(error) {
+    console.log(error);
   }
 };
 

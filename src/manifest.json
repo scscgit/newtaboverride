@@ -43,7 +43,8 @@
     "history",
     "menus",
     "storage",
-    "tabs"
+    "tabs",
+    "sessions"
   ],
   "optional_permissions": [
     "browserSettings",
